@@ -4,7 +4,7 @@ const ts = @import("tree-sitter");
 const Language = ts.Language;
 const Parser = ts.Parser;
 
-extern fn tree_sitter_c() callconv(.C) *const Language;
+extern fn tree_sitter_c() callconv(.c) *const Language;
 
 test "can load grammar" {
     const parser = Parser.create();

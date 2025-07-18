@@ -7,17 +7,22 @@ pub fn build(b: *std.Build) !void {
     const shared = b.option(bool, "build-shared", "Build a shared library") orelse true;
     const reuse_alloc = b.option(bool, "reuse-allocator", "Reuse the library allocator") orelse false;
 
-    const lib: *std.Build.Step.Compile = if (shared) b.addSharedLibrary(.{
+    const lib: *std.Build.Step.Compile = if (shared) b.addLibrary(.{
         .name = "tree-sitter-c",
-        .pic = true,
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
-    }) else b.addStaticLibrary(.{
+        .linkage = .dynamic,
+        .root_module = b.createModule(.{
+            .pic = true,
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+    }) else b.addLibrary(.{
         .name = "tree-sitter-c",
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
     });
 
     lib.addCSourceFile(.{
@@ -59,9 +64,11 @@ pub fn build(b: *std.Build) !void {
     // ╰─────────────────╯
 
     const tests = b.addTest(.{
-        .root_source_file = b.path("bindings/zig/root.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("bindings/zig/root.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     tests.linkLibrary(lib);
     tests.root_module.addImport("tree-sitter", ts_mod);
