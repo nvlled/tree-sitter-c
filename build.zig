@@ -7,8 +7,10 @@ pub fn build(b: *std.Build) !void {
     const shared = b.option(bool, "build-shared", "Build a shared library") orelse true;
     const reuse_alloc = b.option(bool, "reuse-allocator", "Reuse the library allocator") orelse false;
 
+    const library_name = "tree-sitter-c";
+
     const lib: *std.Build.Step.Compile = b.addLibrary(.{
-        .name = "tree-sitter-c",
+        .name = library_name,
         .linkage = if (shared) .dynamic else .static,
         .root_module = b.createModule(.{
             .target = target,
@@ -50,10 +52,7 @@ pub fn build(b: *std.Build) !void {
         });
     }
 
-    const ts_dep = b.dependency("tree_sitter", .{});
-    const ts_mod = ts_dep.module("tree-sitter");
-
-    const module = b.addModule("tree-sitter-c", .{
+    const module = b.addModule(library_name, .{
         .root_source_file = b.path("bindings/zig/root.zig"),
         .target = target,
         .optimize = optimize,
@@ -61,12 +60,23 @@ pub fn build(b: *std.Build) !void {
     module.linkLibrary(lib);
 
     const tests = b.addTest(.{
-        .root_source_file = b.path("bindings/zig/test.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("bindings/zig/test.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
-    tests.root_module.addImport("tree-sitter", ts_mod);
-    tests.root_module.addImport("tree-sitter-c", module);
+    tests.root_module.addImport(library_name, module);
+
+    var args = try std.process.argsWithAllocator(b.allocator);
+    defer args.deinit();
+    while (args.next()) |a| {
+        if (std.mem.eql(u8, a, "test")) {
+            const ts_dep = b.lazyDependency("tree_sitter", .{}) orelse continue;
+            tests.root_module.addImport("tree-sitter", ts_dep.module("tree-sitter"));
+            break;
+        }
+    }
 
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run unit tests");
